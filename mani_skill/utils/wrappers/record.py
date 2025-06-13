@@ -38,9 +38,15 @@ def parse_env_info(env: gym.Env):
     else:
         # gym>=0.22
         env_kwargs = env.spec.kwargs
+
+    # Convert any tensors within env_kwargs to numpy arrays for JSON serialization.
+    # A deepcopy is used to avoid modifying the original env.spec.kwargs if it's
+    # expected to retain tensors elsewhere (though unlikely for spec.kwargs).
+    env_kwargs_processed = common.to_numpy(copy.deepcopy(env_kwargs))
+
     return dict(
         env_id=env.spec.id,
-        env_kwargs=env_kwargs,
+        env_kwargs=env_kwargs_processed,
     )
 
 
