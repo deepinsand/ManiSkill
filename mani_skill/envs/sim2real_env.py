@@ -236,7 +236,7 @@ class Sim2RealEnv(gym.Env):
         self.base_sim_env.agent.robot.set_qpos(self.agent.robot.qpos)
         return ret
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, options={}):
         self.real_reset_function(self, seed, options)
         if self._handle_wrappers:
             orig_env = self._last_wrapper.env
