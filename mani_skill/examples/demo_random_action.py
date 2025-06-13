@@ -73,10 +73,16 @@ def main(args: Args):
         sensor_configs=dict(shader_pack=args.shader),
         human_render_camera_configs=dict(shader_pack=args.shader),
         viewer_camera_configs=dict(shader_pack=args.shader),
+        base_camera_settings=dict(
+            pos=[0.303036, -0.52228, 0.546671],
+            fov=0.8256,
+            target=[0.35, 0.0, 0.1]
+        ),
         num_envs=args.num_envs,
         sim_backend=args.sim_backend,
         enable_shadow=True,
         parallel_in_single_scene=parallel_in_single_scene,
+        greenscreen_overlay_path="examples/baselines/ppo/backgrounds/capture_20250613_130621.png"
     )
     if args.robot_uids is not None:
         env_kwargs["robot_uids"] = tuple(args.robot_uids.split(","))

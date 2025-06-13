@@ -307,11 +307,11 @@ if __name__ == "__main__":
     env_kwargs = dict(
         obs_mode="rgb+segmentation", render_mode=args.render_mode, sim_backend="physx_cuda",
         base_camera_settings=dict(
-            pos=[0.69, 0.37, 0.28],
+            pos=[0.303036, -0.52228, 0.546671],
             fov=0.8256,
-            target=[0.185, -0.15, 0.0]
+            target=[0.35, 0.0, 0.1]
         ),
-        greenscreen_overlay_path="backgrounds/greenscreen_background_1.png",
+        greenscreen_overlay_path="backgrounds/capture_20250613_130621.png",
     )
     if args.control_mode is not None:
         env_kwargs["control_mode"] = args.control_mode
