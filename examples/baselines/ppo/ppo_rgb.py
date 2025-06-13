@@ -305,7 +305,9 @@ if __name__ == "__main__":
 
     # env setup
     env_kwargs = dict(
-        obs_mode="rgb+segmentation", render_mode=args.render_mode, sim_backend="physx_cuda",
+        obs_mode="rgb+segmentation", render_mode=args.render_mode, sim_backend=("physx_cuda" if torch.cuda.is_available() and args.cuda else "physx_cpu"),
+        # Ensure camera resolution matches training
+        sensor_configs=dict(width=160, height=120), # This resolution leads to 11264 flattened features
         base_camera_settings=dict(
             pos=[0.303036, -0.52228, 0.546671],
             fov=0.8256,
@@ -388,7 +390,10 @@ if __name__ == "__main__":
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     if args.checkpoint:
-        agent.load_state_dict(torch.load(args.checkpoint))
+        if torch.cuda.is_available() and args.cuda:
+            agent.load_state_dict(torch.load(args.checkpoint))
+        else:
+            agent.load_state_dict(torch.load(args.checkpoint, map_location=torch.device('cpu')))
 
     cumulative_times = defaultdict(float)
 
@@ -404,7 +409,8 @@ if __name__ == "__main__":
             num_episodes = 0
             for _ in range(args.num_eval_steps):
                 with torch.no_grad():
-                    eval_obs, eval_rew, eval_terminations, eval_truncations, eval_infos = eval_envs.step(agent.get_action(eval_obs, deterministic=True))
+                    actions = agent.get_action(eval_obs, deterministic=True)
+                    eval_obs, eval_rew, eval_terminations, eval_truncations, eval_infos = eval_envs.step(actions)
                     if "final_info" in eval_infos:
                         mask = eval_infos["_final_info"]
                         num_episodes += mask.sum()
