@@ -16,11 +16,24 @@ from torch.distributions.normal import Normal
 from torch.utils.tensorboard import SummaryWriter
 
 # ManiSkill specific imports
+from mani_skill.agents.robots.so100.so_100_real import SO100RealAgent
 import mani_skill.envs
 from mani_skill.utils import gym_utils
 from mani_skill.utils.wrappers.flatten import FlattenActionSpaceWrapper, FlattenRGBDObservationWrapper
 from mani_skill.utils.wrappers.record import RecordEpisode
 from mani_skill.vector.wrappers.gymnasium import ManiSkillVectorEnv
+
+from mani_skill.envs.sim2real_env import Sim2RealEnv
+
+from lerobot.common.robots import ( 
+    Robot,
+    RobotConfig,
+    make_robot_from_config,
+    so100_follower,
+)
+from lerobot.common.cameras.opencv import ( # Assuming this is the correct import
+    OpenCVCameraConfig,
+)
 
 @dataclass
 class Args:
@@ -336,9 +349,27 @@ if __name__ == "__main__":
             save_video_trigger = lambda x : (x // args.num_steps) % args.save_train_video_freq == 0
             envs = RecordEpisode(envs, output_dir=f"runs/{run_name}/train_videos", save_trajectory=False, save_video_trigger=save_video_trigger, max_steps_per_video=args.num_steps, video_fps=30)
         eval_envs = RecordEpisode(eval_envs, output_dir=eval_output_dir, save_trajectory=args.evaluate, trajectory_name="trajectory", max_steps_per_video=args.num_eval_steps, video_fps=30, info_on_video=True)
-    envs = ManiSkillVectorEnv(envs, args.num_envs, ignore_terminations=not args.partial_reset, record_metrics=True)
-    eval_envs = ManiSkillVectorEnv(eval_envs, args.num_eval_envs, ignore_terminations=not args.eval_partial_reset, record_metrics=True)
-    assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
+    #envs = ManiSkillVectorEnv(envs, args.num_envs, ignore_terminations=not args.partial_reset, record_metrics=True)
+    #eval_envs = ManiSkillVectorEnv(eval_envs, args.num_eval_envs, ignore_terminations=not args.eval_partial_reset, record_metrics=True)
+    #assert isinstance(envs.single_action_space, gym.spaces.Box), "only continuous action space is supported"
+
+
+    # Instantiate the specific robot configuration, e.g., SO100FollowerConfig
+    robot_config_instance = so100_follower.SO100FollowerConfig(
+        id="follower",
+        port="/dev/tty.usbmodem59700726681",
+        use_degrees=True,
+        cameras={
+            "base_camera": OpenCVCameraConfig(
+                index_or_path=1, width=640, height=480, fps=30
+            )
+        },
+    ) # Add any other necessary parameters
+    real_agent = SO100RealAgent(robot=make_robot_from_config(robot_config_instance))
+    real_agent.start() # Connect to the real robot
+    # create a real world interface based on the sim env and real robot
+    real_eval_env = Sim2RealEnv(sim_env=eval_envs, agent=real_agent) 
+
 
     max_episode_steps = gym_utils.find_max_episode_steps_value(envs._env)
     logger = None
@@ -381,6 +412,8 @@ if __name__ == "__main__":
     start_time = time.time()
     next_obs, _ = envs.reset(seed=args.seed)
     eval_obs, _ = eval_envs.reset(seed=args.seed)
+    real_obs, _ = real_eval_env.reset(seed=args.seed)
+
     next_done = torch.zeros(args.num_envs, device=device)
     print(f"####")
     print(f"args.num_iterations={args.num_iterations} args.num_envs={args.num_envs} args.num_eval_envs={args.num_eval_envs}")
@@ -405,12 +438,13 @@ if __name__ == "__main__":
             print("Evaluating")
             stime = time.perf_counter()
             eval_obs, _ = eval_envs.reset()
+            real_obs, _ = real_eval_env.reset()
             eval_metrics = defaultdict(list)
             num_episodes = 0
             for _ in range(args.num_eval_steps):
                 with torch.no_grad():
-                    actions = agent.get_action(eval_obs, deterministic=True)
-                    eval_obs, eval_rew, eval_terminations, eval_truncations, eval_infos = eval_envs.step(actions)
+                    actions = agent.get_action(real_obs, deterministic=True)
+                    real_obs, eval_rew, eval_terminations, eval_truncations, eval_infos = real_eval_env.step(actions)
                     if "final_info" in eval_infos:
                         mask = eval_infos["_final_info"]
                         num_episodes += mask.sum()
